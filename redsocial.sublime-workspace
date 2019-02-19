@@ -1,0 +1,404 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"user",
+				"userUpdated"
+			],
+			[
+				"findBy",
+				"findByIdAndUpdate"
+			],
+			[
+				"file",
+				"file_path"
+			],
+			[
+				"fil",
+				"file_split"
+			],
+			[
+				"find",
+				"findById"
+			],
+			[
+				"aut",
+				"authorization"
+			],
+			[
+				"b",
+				"bcrypt"
+			],
+			[
+				"No",
+				"NodeJS"
+			],
+			[
+				"Message",
+				"MessageSchema"
+			],
+			[
+				"Follow",
+				"FollowSchema"
+			],
+			[
+				"Publi",
+				"PublicationSchema"
+			],
+			[
+				"pa",
+				"bodyParser"
+			],
+			[
+				"bu",
+				"button"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"contents": "'use strict'\nvar bcrypt = require('bcrypt-nodejs');\nvar mongoosePaginate = require('mongoose-pagination');\nvar User = require('../models/user');\nvar jwt = require('../services/jwt');\nvar fs = require('fs');\nvar path = require('path');\nvar Follow = require('../models/follow');\n\n\n//METODOS DE PRUEBA \nfunction home(req, res) {\n\tres.status(200).send({\n\t\tmessage: 'Accion de pruebas en el servidor de NodeJS'\n\t});\n}\n\nfunction pruebas(req, res) {\n\tres.status(200).send({\n\t\tmessage: 'Accion de pruebas en el servidor de NodeJS'\n\t});\n}\n\n//REGISTRO\nfunction saveUser(req,res){\n\tvar params = req.body;\n\tvar user = new User();\n\n\n\tif(params.name && params.surname && params.nick &&\n\t params.email && params.password){\n\n\t\tuser.name = params.name;\n\t\tuser.surname = params.surname;\n\t\tuser.nick = params.nick;\n\t\tuser.email = params.email;\n\t\tuser.role = 'ROLE_USER';\n\t\tuser.image = null;\n\n\t\t//CONTROLAR QUE EL NICK Y MAIL NO ESTEN YA REGISTRADOS\n\t\tUser.find({ $or: [\n\t\t\t \t\t\t{email: user.email.toLowerCase()},\n\t\t\t \t\t\t{nick: user.nick.toLowerCase()}\n\t\t\t \t\t\t]}).exec((err, users) => {\n\t\t\t \t\t\t\tif(err) return res.status(500).send({message: 'Error en la petición de usuarios'});\n\t\t\t \t\t\t\n\t\t\t \t\t\t\tif(users && users.length >= 1){\n\t\t\t \t\t\t\t\treturn res.status(200).send({message: 'El usuario que intenta registrar ya existe'});\n\t\t\t \t\t\t\t}else{\n\t\t\t \t\t\t\t\t//CIFRA Y GUARDA LOS DATOS \n\t\t\t\t\t\t\t\tbcrypt.hash(params.password, null, null, (err, hash) => {\n\t\t\t\t\t\t\t\t\tuser.password = hash;\n\n\t\t\t\t\t\t\t\t\tuser.save((err, userStored) => {\n\t\t\t\t\t\t\t\t\t\tif(err) return res.status(500).send({message: 'Error al guardar el usuario'});\n\n\t\t\t\t\t\t\t\t\t\tif(userStored){\n\t\t\t\t\t\t\t\t\t\t\tres.status(200).send({user: userStored});\n\t\t\t\t\t\t\t\t\t\t}else{\n\t\t\t\t\t\t\t\t\t\t\tres.status(404).send({message: 'No se ha registrado el usuario'});\n\t\t\t\t\t\t\t\t\t\t}\n\n\t\t\t\t\t\t\t\t\t});\n\t\t\t\t\t\t\t\t});\n\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\n\t}else{\n\t\tres.status(200).send({\n\t\t\tmessage: 'Envia todos los campos necesarios'\n\t\t});\n\t}\n}\n\n\n//LOGIN DE USUARIOS\nfunction loginUser(req, res){\n\tvar params = req.body;\n\n\tvar email = params.email;\n\tvar password = params.password;\n\n\tUser.findOne({email: email}, (err, user) => {\n\t\tif(err) return res.status(500).send({message: 'Error en la petición'});\n\n\t\tif(user){\n\t\t\tbcrypt.compare(password, user.password, (err, check) => {\n\t\t\t\tif(check){\n\t\t\t\t\t\n\t\t\t\t\tif(params.gettoken){\n\t\t\t\t\t//generar token y devolver token\n\t\t\t\t\treturn res.status(200).send({\n\t\t\t\t\t\ttoken: jwt.createToken(user)\n\t\t\t\t\t});\n\t\t\t\t\t}else{\n\t\t\t\t\t//devolver datos de usuario\n\t\t\t\t\t\tuser.password = undefined;\n\t\t\t\t\t\treturn res.status(200).send({user})\n\t\t\t\t\t}\n\n\t\t\t\t\t\n\t\t\t\t}else{\n\t\t\t\t\treturn res.status(404).send({message: 'El usuario no se ha podido identificar'});\n\t\t\t\t}\n\t\t\t});\n\t\t}else{\n\t\t\treturn res.status(404).send({message: 'El usuario no se ha podido identificar!!!!'});\n\t\t}\n\t});\n\n\n}\n\n//METODO PARA LISTAR DATOS DE USUARIO\n\nfunction getUser(req, res){\n\tvar userId = req.params.id;\n\n\tUser.findById(userId, (err, user) => {\n\t\tif(err) return res.status(500).send({message: 'Error en la peticion'});\n\t\n\t\tif(!user) return res.status(404).send({message: 'El usuario no existe'});\n\n\t\tFollow.findOne({\"user\":req.user.sub, \"followed\":userId}).exec((err, follow) =>{\n\t\t\tif(err) return res.status(500).send({message: 'Error al comprobar el seguimiento'});\n\t\t\treturn res.status(200).send({user, follow});\n\t\t});\n\n\t\treturn res.status(200).send({user});\n\t});\n}\n//DEVOLVER LISTADO DE USERS PAGINADOS\n\nfunction getUsers(req, res){\n\tvar identity_user_id = req.user.sub;\n\tvar page = 1;\n\tif(req.params.page){\n\t\tpage = req.params.page;\n\t}\n\n\tvar itemsPerPage = 5;\n\n\tUser.find().sort('_id').paginate(page, itemsPerPage, (err, users, total) => {\n\t\tif(err) return res.status(500).send({message:'Error en la petición'});\n\n\t\tif(!users) return res.status(404).send({message:'No hay usuarios en la plataforma'});\n\t\n\t\treturn res.status(200).send({\n\t\t\tusers,\n\t\t\ttotal,\n\t\t\tpages: Math.ceil(total/itemsPerPage)\n\t\t});\n\t});\n}\n\n//ACTUALIZAR DATOS DE UN USUARIO\nfunction updateUser(req, res){\n\tvar userId = req.params.id;\n\tvar update = req.body;\n\n\t//borrar propiedad password\n\tdelete update.password;\n\n\tif(userId != req.user.sub){\n\t\treturn res.status(500).send({message: 'No tienes permiso para actualizar los datos del usuario'});\n\t}\n\n\tUser.findByIdAndUpdate(userId, update, {new: true}, (err, userUpdated) => {\n\t\tif(err) return res.status(500).send({message:'Error en la petición'});\n\n\t\tif(!userUpdated) return res.status(404).send({message: 'No se ha podido actualizar la informacion'});\n\t\n\t\treturn res.status(200).send({user: userUpdated});\n\t});\n}\n\n//SUBIR AVATAR\n\nfunction uploadImage(req, res){\n\tvar userId = req.params.id;\n\n\t\n\n\tif(req.files){\n\t\tvar file_path = req.files.image.path;\n\t\tconsole.log(file_path);\n\n\t\tvar file_split = file_path.split('\\\\');\n\t\tconsole.log(file_split);\n\n\t\tvar file_name = file_split[2];\n\t\tconsole.log(file_name);\n\n\t\tvar ext_split = file_name.split('\\.');\n\t\tconsole.log(ext_split);\n\n\t\tvar file_ext = ext_split[1];\n\n\t\tif(userId != req.user.sub){\n\t\treturn removeFilesOfUploads(res, file_path, 'No tienes permisos para actualizar los datos del usuario')\n\t\t\n\t}\n\n\t\tif(file_ext == 'png' || file_ext == 'jpg' || file_ext == 'jpeg' || file_ext == 'gif'){\n\t\t\t//actualizar documento de usuario logueado\n\t\t\tUser.findByIdAndUpdate(userId, {image: file_name}, {new:true}, (err, userUpdated) =>{\n\t\t\t\tif(err) return res.status(500).send({message:'Error en la petición'});\n\n\t\t\t\tif(!userUpdated) return res.status(404).send({message: 'No se ha podido actualizar la informacion'});\n\t\n\t\t\t\treturn res.status(200).send({user: userUpdated});\n\t\t\t\t});\n\t\t}else{\n\t\t\treturn removeFilesOfUploads(res, file_path, 'extension no valida');\n\t\t}\n\n\t}else{\n\t\treturn res.status(200).send({message: 'No se han subido imagenes'});\n\t}\n}\n\n\n\nfunction removeFilesOfUploads(res, file_path, message){\n\t\t\tfs.unlink(file_path, (err) =>{\n\t\t\t\treturn res.status(200).send({message: message});\n\t\t\t});\n}\n\n\n\nfunction getImageFile(req, res){\n\tvar image_file = req.params.imageFile;\n\tvar path_file = './uploads/users/'+image_file;\n\n\tfs.exists(path_file, (exists) => {\n\t\tif(exists){\n\t\t\tres.sendFile(path.resolve(path_file));\n\t\t}else{\n\t\t\tres.status(200).send({message: 'No existe la imagen...'});\n\t\t}\n\t});\n}\n\n\n\n//EXPORTAMOS LAS FUNCIONES\nmodule.exports = {\n\thome,\n\tpruebas,\n\tsaveUser,\n\tloginUser,\n\tgetUser,\n\tgetUsers,\n\tupdateUser,\n\tuploadImage,\n\tgetImageFile\n\t/*\n\t*/\n}",
+			"file": "api/controllers/user.js",
+			"file_size": 6551,
+			"file_write_time": 131948383616376179,
+			"settings":
+			{
+				"buffer_size": 6286,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "api/routes/user.js",
+			"settings":
+			{
+				"buffer_size": 894,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"contents": "'use strict'\n\n//var path = require('path');\n//var fs = require('fs');\nvar mongoosePaginate = require('mongoose-pagination');\t",
+			"file": "api/controllers/follow.js",
+			"file_size": 3377,
+			"file_write_time": 131948375467920293,
+			"settings":
+			{
+				"buffer_size": 125,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "api/middlewares/authenticated.js",
+			"settings":
+			{
+				"buffer_size": 669,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		}
+	],
+	"build_system": "",
+	"build_system_choices":
+	[
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"console":
+	{
+		"height": 0.0,
+		"history":
+		[
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/C/xampp/htdocs/redsocial",
+		"/C/xampp/htdocs/redsocial/api",
+		"/C/xampp/htdocs/redsocial/api/controllers",
+		"/C/xampp/htdocs/redsocial/api/middlewares",
+		"/C/xampp/htdocs/redsocial/api/routes",
+		"/C/xampp/htdocs/redsocial/api/uploads"
+	],
+	"file_history":
+	[
+		"/C/xampp/htdocs/redsocial/api/routes/user.js",
+		"/C/xampp/htdocs/redsocial/api/models/message.js",
+		"/C/xampp/htdocs/redsocial/api/models/publication.js",
+		"/C/xampp/htdocs/redsocial/api/services/jwt.js",
+		"/C/xampp/htdocs/redsocial/api/middlewares/authenticated.js",
+		"/C/xampp/htdocs/redsocial/api/controllers/user.js",
+		"/C/xampp/htdocs/redsocial/api/app.js",
+		"/C/xampp/htdocs/redsocial/api/index.js",
+		"/C/Users/Lautaro/Desktop/PanelHGV3/index.php",
+		"/C/Users/Lautaro/Desktop/PanelHGV3/functions.php",
+		"/C/xampp/htdocs/redsocial/api/package.json",
+		"/C/xampp/htdocs/redsocial/api/models/follow.js",
+		"/C/xampp/htdocs/redsocial/api/models/user.js",
+		"/C/xampp/htdocs/taller/php/buscar_cliente.php",
+		"/C/xampp/htdocs/taller/js/llamado_cliente.js",
+		"/C/xampp/htdocs/taller/consulta_cliente.php",
+		"/C/xampp/htdocs/taller/js/peticion.js",
+		"/C/xampp/htdocs/taller/querytiemporeal.php",
+		"/C/xampp/htdocs/taller/js/buscar_patente_cliente.js",
+		"/C/xampp/htdocs/taller/genera_orden.php",
+		"/C/Users/Lautaro/Downloads/taller.sql",
+		"/C/xampp/htdocs/taller/inicio.php"
+	],
+	"find":
+	{
+		"height": 28.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"status"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 2,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "api/controllers/user.js",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 6286,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								3323,
+								3323
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JavaScript.sublime-syntax",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1995.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "api/routes/user.js",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 894,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								831,
+								831
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JavaScript.sublime-syntax"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "api/controllers/follow.js",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 125,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								125,
+								125
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JavaScript.sublime-syntax"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "api/middlewares/authenticated.js",
+					"semi_transient": true,
+					"settings":
+					{
+						"buffer_size": 669,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JavaScript.sublime-syntax",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 28.0
+	},
+	"input":
+	{
+		"height": 51.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"pinned_build_system": "",
+	"project": "redsocial.sublime-project",
+	"replace":
+	{
+		"height": 52.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_symbol":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 177.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}
